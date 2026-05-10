@@ -1,13 +1,13 @@
-import '@testing-library/react-native/extend-expect';
-import type React from 'react';
-
 jest.mock('expo-router', () => ({
   Link: ({ children }: { children: React.ReactNode }) => children,
   router: {
     replace: jest.fn(),
     push: jest.fn(),
   },
-  useFocusEffect: (callback: () => void) => callback(),
+  useFocusEffect: (callback: () => void) => {
+    const React = require('react');
+    React.useEffect(() => callback(), [callback]);
+  },
   useLocalSearchParams: () => ({}),
 }));
 

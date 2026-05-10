@@ -29,7 +29,7 @@ export function buildRecommendations(applications: JobApplication[], reminders: 
   if (savedWithoutFollowUp.length > 0) {
     recommendations.push({
       id: 'saved-without-follow-up',
-      title: `${savedWithoutFollowUp.length} saved job${savedWithoutFollowUp.length === 1 ? '' : 's'} need a next step`,
+      title: savedWithoutFollowUp.length === 1 ? '1 saved job needs a next step' : `${savedWithoutFollowUp.length} saved jobs need a next step`,
       detail: 'Add a follow-up date so nothing sits forgotten.',
       href: '/jobs?status=Saved',
       priority: 'medium',
@@ -40,7 +40,7 @@ export function buildRecommendations(applications: JobApplication[], reminders: 
   if (appliedWithoutFollowUp.length > 0) {
     recommendations.push({
       id: 'applied-without-follow-up',
-      title: `${appliedWithoutFollowUp.length} application${appliedWithoutFollowUp.length === 1 ? '' : 's'} need follow-up dates`,
+      title: appliedWithoutFollowUp.length === 1 ? '1 application needs a follow-up date' : `${appliedWithoutFollowUp.length} applications need follow-up dates`,
       detail: 'Pick a date to check back with the company.',
       href: '/jobs?status=Applied',
       priority: 'medium',
@@ -51,7 +51,7 @@ export function buildRecommendations(applications: JobApplication[], reminders: 
   if (stale.length > 0) {
     recommendations.push({
       id: 'stale-applications',
-      title: `${stale.length} active item${stale.length === 1 ? '' : 's'} may be stale`,
+      title: stale.length === 1 ? '1 active item may be stale' : `${stale.length} active items may be stale`,
       detail: 'Review the status or archive the dead ends.',
       href: '/jobs',
       priority: 'low',
