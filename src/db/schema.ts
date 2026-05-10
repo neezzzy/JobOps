@@ -27,6 +27,10 @@ CREATE TABLE IF NOT EXISTS resume_versions (
   name TEXT NOT NULL,
   target_role TEXT,
   notes TEXT,
+  file_uri TEXT,
+  file_name TEXT,
+  file_type TEXT,
+  file_size INTEGER,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );

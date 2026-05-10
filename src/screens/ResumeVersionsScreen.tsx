@@ -37,6 +37,7 @@ export function ResumeVersionsScreen() {
         <Card key={resume.id}>
           <Heading>{resume.name}</Heading>
           <Body muted>{resume.target_role || 'No target role'} • {displayDate(resume.created_at)}</Body>
+          {!!resume.file_name && <Body>{resume.file_name}</Body>}
           {!!resume.notes && <Body muted>{resume.notes}</Body>}
           <View style={styles.actions}>
             <Link href={`/resume/${resume.id}`} asChild><Button variant="secondary">Edit</Button></Link>

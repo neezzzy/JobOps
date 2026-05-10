@@ -3,6 +3,10 @@ export type ResumeVersion = {
   name: string;
   target_role?: string | null;
   notes?: string | null;
+  file_uri?: string | null;
+  file_name?: string | null;
+  file_type?: string | null;
+  file_size?: number | null;
   created_at: string;
   updated_at: string;
 };

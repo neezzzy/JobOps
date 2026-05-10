@@ -131,13 +131,40 @@ export async function createResumeVersion(input: ResumeVersionInput) {
   const db = await getDb();
   const timestamp = nowIso();
   const id = createId('res');
-  await db.runAsync('INSERT INTO resume_versions (id, name, target_role, notes, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)', id, input.name, input.target_role ?? null, input.notes ?? null, timestamp, timestamp);
+  await db.runAsync(
+    `INSERT INTO resume_versions (
+      id, name, target_role, notes, file_uri, file_name, file_type, file_size, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    id,
+    input.name,
+    input.target_role ?? null,
+    input.notes ?? null,
+    input.file_uri ?? null,
+    input.file_name ?? null,
+    input.file_type ?? null,
+    input.file_size ?? null,
+    timestamp,
+    timestamp,
+  );
   return id;
 }
 
 export async function updateResumeVersion(id: string, input: ResumeVersionInput) {
   const db = await getDb();
-  await db.runAsync('UPDATE resume_versions SET name = ?, target_role = ?, notes = ?, updated_at = ? WHERE id = ?', input.name, input.target_role ?? null, input.notes ?? null, nowIso(), id);
+  await db.runAsync(
+    `UPDATE resume_versions SET
+      name = ?, target_role = ?, notes = ?, file_uri = ?, file_name = ?, file_type = ?, file_size = ?, updated_at = ?
+    WHERE id = ?`,
+    input.name,
+    input.target_role ?? null,
+    input.notes ?? null,
+    input.file_uri ?? null,
+    input.file_name ?? null,
+    input.file_type ?? null,
+    input.file_size ?? null,
+    nowIso(),
+    id,
+  );
 }
 
 export async function deleteResumeVersion(id: string) {

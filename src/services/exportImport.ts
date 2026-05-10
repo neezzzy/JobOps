@@ -27,14 +27,28 @@ export async function exportAllData(): Promise<string> {
 export async function importAllData(json: string) {
   const parsed = JSON.parse(json) as Partial<JobOpsBackup>;
   if (!Array.isArray(parsed.applications) || !Array.isArray(parsed.resume_versions) || !Array.isArray(parsed.status_history) || !Array.isArray(parsed.reminders)) {
-    throw new Error('Backup JSON is missing required tables.');
+    throw new Error('This backup is missing required data.');
   }
 
   const db = await getDb();
   await clearAllData();
 
   for (const item of parsed.resume_versions) {
-    await db.runAsync('INSERT INTO resume_versions (id, name, target_role, notes, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)', item.id, item.name, item.target_role ?? null, item.notes ?? null, item.created_at, item.updated_at);
+    await db.runAsync(
+      `INSERT INTO resume_versions (
+        id, name, target_role, notes, file_uri, file_name, file_type, file_size, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      item.id,
+      item.name,
+      item.target_role ?? null,
+      item.notes ?? null,
+      item.file_uri ?? null,
+      item.file_name ?? null,
+      item.file_type ?? null,
+      item.file_size ?? null,
+      item.created_at,
+      item.updated_at,
+    );
   }
   for (const item of parsed.applications) {
     await db.runAsync(
