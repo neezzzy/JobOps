@@ -54,24 +54,27 @@ export function SettingsScreen() {
       <Card>
         <Heading>Privacy</Heading>
         <Body>Your job search data is stored locally on this device.</Body>
-        <Body muted>No accounts, backend, analytics, tracking, scraping, or external AI APIs are used.</Body>
+        <Body muted>No accounts, tracking, cloud sync, or outside services are used.</Body>
       </Card>
 
       <Card>
-        <Heading>Export</Heading>
-        <Button onPress={() => void exportData()}>Export all data as JSON</Button>
-        {!!exportJson && <FormField label="Backup JSON" value={exportJson} onChangeText={setExportJson} multiline />}
+        <Heading>Backups</Heading>
+        <Body muted>Create a saved backup or restore from one you already have.</Body>
+        <Button onPress={() => void exportData()}>Create backup</Button>
+        {!!exportJson && <FormField label="Saved backup" value={exportJson} onChangeText={setExportJson} multiline />}
+        <FormField label="Restore from backup" value={importJson} onChangeText={setImportJson} multiline />
+        <Button variant="secondary" disabled={!importJson.trim()} onPress={confirmImport}>Restore backup</Button>
       </Card>
 
       <Card>
-        <Heading>Import</Heading>
-        <FormField label="Paste backup JSON" value={importJson} onChangeText={setImportJson} multiline />
-        <Button variant="secondary" disabled={!importJson.trim()} onPress={confirmImport}>Import JSON backup</Button>
+        <Heading>Demo data</Heading>
+        <Body muted>Add sample jobs, resumes, and reminders to explore the app.</Body>
+        <Button variant="secondary" onPress={confirmSeed}>Add demo data</Button>
       </Card>
 
       <Card>
-        <Heading>Local data</Heading>
-        <Button variant="secondary" onPress={confirmSeed}>Seed demo data</Button>
+        <Heading>Data reset</Heading>
+        <Body muted>Remove local jobs, resumes, follow-ups, and history from this device.</Body>
         <Button variant="danger" onPress={confirmClear}>Clear all data</Button>
       </Card>
 

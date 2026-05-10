@@ -42,5 +42,5 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   quiet: { borderWidth: 0, paddingHorizontal: 6 },
-  text: { fontSize: 16, fontWeight: '700', letterSpacing: 0 },
+  text: { fontSize: 16, fontWeight: '700', letterSpacing: 0, textAlign: 'center' },
 });

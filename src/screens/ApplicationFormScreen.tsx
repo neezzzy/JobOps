@@ -95,7 +95,7 @@ export function ApplicationFormScreen({ id }: Props) {
         <FormField label="Company" value={form.company} onChangeText={(value) => setField('company', value)} />
         <FormField label="Location" value={form.location ?? ''} onChangeText={(value) => setField('location', value)} />
         <FormField label="Salary range" value={form.salary_text ?? ''} onChangeText={(value) => setField('salary_text', value)} placeholder="$90k-$120k" />
-        <FormField label="Job posting URL" value={form.posting_url ?? ''} onChangeText={(value) => setField('posting_url', value)} autoCapitalize="none" />
+        <FormField label="Job posting link" value={form.posting_url ?? ''} onChangeText={(value) => setField('posting_url', value)} autoCapitalize="none" />
         <FormField label="Source site" value={form.source_site ?? ''} onChangeText={(value) => setField('source_site', value)} />
       </Card>
 
@@ -132,7 +132,7 @@ export function ApplicationFormScreen({ id }: Props) {
       <Card>
         <Heading>Job description</Heading>
         <FormField label="Pasted description" value={form.job_description ?? ''} onChangeText={(value) => setField('job_description', value)} multiline />
-        <Button variant="secondary" onPress={runParser}>Extract keywords</Button>
+        <Button variant="secondary" onPress={runParser}>Find helpful details</Button>
         {parsedKeywords.length > 0 && <Body muted>{parsedKeywords.join(', ')}</Body>}
       </Card>
 

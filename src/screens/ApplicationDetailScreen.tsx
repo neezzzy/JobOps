@@ -91,7 +91,7 @@ export function ApplicationDetailScreen({ id }: { id: string }) {
         <Heading>Details</Heading>
         <Detail label="Location" value={application.location} />
         <Detail label="Salary" value={application.salary_text} />
-        <Detail label="Posting URL" value={application.posting_url} />
+        <Detail label="Job posting link" value={application.posting_url} />
         <Detail label="Source" value={application.source_site} />
         <Detail label="Date saved" value={displayDate(application.date_saved)} />
         <Detail label="Date applied" value={displayDate(application.date_applied)} />
@@ -105,8 +105,8 @@ export function ApplicationDetailScreen({ id }: { id: string }) {
       </Card>
 
       <Card>
-        <Heading>Parsed keywords</Heading>
-        <Body muted>{keywords.length ? keywords.join(', ') : 'No keywords extracted yet.'}</Body>
+        <Heading>Job highlights</Heading>
+        <Body muted>{keywords.length ? keywords.join(', ') : 'No highlights found yet.'}</Body>
       </Card>
 
       <Card>
@@ -143,7 +143,7 @@ function Detail({ label, value }: { label: string; value?: string | null }) {
 const styles = StyleSheet.create({
   header: { flexDirection: 'row', gap: 12, alignItems: 'flex-start', justifyContent: 'space-between' },
   flex: { flex: 1, gap: 4 },
-  actions: { flexDirection: 'row', gap: 10 },
+  actions: { flexDirection: 'row', gap: 10, flexWrap: 'wrap' },
   wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   choice: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 9 },
 });
