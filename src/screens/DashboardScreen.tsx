@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
-import { Link, useFocusEffect } from 'expo-router';
+import { Link, useFocusEffect, type Href } from 'expo-router';
 import { Button } from '@/src/components/Button';
 import { Card } from '@/src/components/Card';
 import { EmptyState } from '@/src/components/EmptyState';
@@ -9,14 +9,19 @@ import { Body, Heading, Title } from '@/src/components/Typography';
 import { APPLICATION_STATUSES, type JobApplication, type Reminder } from '@/src/types/application';
 import { displayDate } from '@/src/utils/dates';
 import { listApplications, listReminders } from '@/src/db/database';
+import { buildRecommendations, type Recommendation } from '@/src/services/recommendations';
 
 export function DashboardScreen() {
   const [applications, setApplications] = useState<JobApplication[]>([]);
   const [reminders, setReminders] = useState<(Reminder & { company?: string; job_title?: string })[]>([]);
+  const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
 
   const load = useCallback(async () => {
-    setApplications(await listApplications());
-    setReminders((await listReminders(false)).slice(0, 5));
+    const nextApplications = await listApplications();
+    const nextReminders = await listReminders(false);
+    setApplications(nextApplications);
+    setReminders(nextReminders.slice(0, 5));
+    setRecommendations(buildRecommendations(nextApplications, nextReminders));
   }, []);
 
   useFocusEffect(useCallback(() => { void load(); }, [load]));
@@ -33,26 +38,54 @@ export function DashboardScreen() {
         </Link>
       </View>
 
-      <Card>
-        <Body muted>Total applications</Body>
-        <Title>{applications.length}</Title>
-      </Card>
+      <Link href="/jobs" asChild>
+        <Pressable>
+          <Card style={styles.summaryCard}>
+            <Body muted>Total applications</Body>
+            <Title>{applications.length}</Title>
+            <Body muted>Open job board</Body>
+          </Card>
+        </Pressable>
+      </Link>
 
       <View style={styles.grid}>
-        {APPLICATION_STATUSES.map((status) => (
-          <Card key={status} style={styles.statusCard}>
-            <Body muted>{status}</Body>
-            <Heading>{applications.filter((item) => item.status === status).length}</Heading>
-          </Card>
-        ))}
+        {APPLICATION_STATUSES.map((status) => {
+          const count = applications.filter((item) => item.status === status).length;
+          return (
+            <Link key={status} href={`/jobs?status=${encodeURIComponent(status)}`} asChild>
+              <Pressable style={styles.statusCard}>
+                <Card>
+                  <Body muted>{status}</Body>
+                  <Heading>{count}</Heading>
+                </Card>
+              </Pressable>
+            </Link>
+          );
+        })}
       </View>
+
+      <Heading>Recommendations</Heading>
+      {recommendations.length === 0 ? <EmptyState text="No recommendations right now." /> : recommendations.map((item) => (
+        <Link key={item.id} href={item.href as Href} asChild>
+          <Pressable>
+            <Card style={styles.recommendation}>
+              <Body>{item.title}</Body>
+              <Body muted>{item.detail}</Body>
+            </Card>
+          </Pressable>
+        </Link>
+      ))}
 
       <Heading>Upcoming follow-ups</Heading>
       {reminders.length === 0 ? <EmptyState text="No open follow-ups." /> : reminders.map((reminder) => (
-        <Card key={reminder.id}>
-          <Body>{reminder.title}</Body>
-          <Body muted>{displayDate(reminder.reminder_date)}</Body>
-        </Card>
+        <Link key={reminder.id} href={reminder.application_id ? `/application/${reminder.application_id}` : '/reminders'} asChild>
+          <Pressable>
+            <Card>
+              <Body>{reminder.title}</Body>
+              <Body muted>{displayDate(reminder.reminder_date)}</Body>
+            </Card>
+          </Pressable>
+        </Link>
       ))}
 
       <Heading>Recently added</Heading>
@@ -71,7 +104,9 @@ export function DashboardScreen() {
 }
 
 const styles = StyleSheet.create({
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' },
+  summaryCard: { minHeight: 110, justifyContent: 'center' },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  statusCard: { width: '31%', minWidth: 96 },
+  statusCard: { flexGrow: 1, flexBasis: 112, maxWidth: 220 },
+  recommendation: { borderLeftWidth: 4 },
 });

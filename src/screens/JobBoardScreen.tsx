@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
-import { Link, useFocusEffect } from 'expo-router';
+import { Link, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { Button } from '@/src/components/Button';
 import { Card } from '@/src/components/Card';
 import { EmptyState } from '@/src/components/EmptyState';
@@ -15,6 +15,7 @@ import { displayDate } from '@/src/utils/dates';
 
 export function JobBoardScreen() {
   const theme = useAppTheme();
+  const { status } = useLocalSearchParams<{ status?: ApplicationStatus }>();
   const [applications, setApplications] = useState<JobApplication[]>([]);
   const [query, setQuery] = useState('');
 
@@ -40,12 +41,17 @@ export function JobBoardScreen() {
       </View>
       <FormField label="Search" value={query} onChangeText={setQuery} placeholder="Title, company, location, source" />
 
-      {APPLICATION_STATUSES.map((status) => {
-        const rows = filtered.filter((item) => item.status === status);
+      {APPLICATION_STATUSES.filter((item) => !status || item === status).map((statusName) => {
+        const rows = filtered.filter((item) => item.status === statusName);
         return (
-          <View key={status} style={styles.group}>
-            <Heading>{status} ({rows.length})</Heading>
-            {rows.length === 0 ? <EmptyState text={`No ${status.toLowerCase()} applications.`} /> : rows.map((item) => (
+          <View key={statusName} style={styles.group}>
+            <Heading>{statusName} ({rows.length})</Heading>
+            {status && (
+              <Link href="/jobs" asChild>
+                <Button variant="secondary">Show all statuses</Button>
+              </Link>
+            )}
+            {rows.length === 0 ? <EmptyState text={`No ${statusName.toLowerCase()} applications.`} /> : rows.map((item) => (
               <Card key={item.id}>
                 <Link href={`/application/${item.id}`} asChild>
                   <Pressable>
@@ -77,7 +83,7 @@ export function JobBoardScreen() {
 const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   group: { gap: 10 },
-  cardHead: { flexDirection: 'row', gap: 10, justifyContent: 'space-between' },
+  cardHead: { flexDirection: 'row', gap: 10, justifyContent: 'space-between', flexWrap: 'wrap' },
   flex: { flex: 1, gap: 4 },
   moves: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   moveButton: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 7 },
