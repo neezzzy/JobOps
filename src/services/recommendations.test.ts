@@ -36,4 +36,13 @@ describe('recommendations', () => {
 
     expect(items).toEqual([]);
   });
+
+  it('prioritizes follow-ups due today and interviews without prep', () => {
+    const items = buildRecommendations([
+      { ...baseApplication, id: 'app_2', status: 'Interview', follow_up_date: null },
+    ], [{ ...baseReminder, reminder_date: '2026-05-01' }], new Date('2026-05-01T00:00:00.000Z'));
+
+    expect(items.map((item) => item.id)).toEqual(expect.arrayContaining(['today-follow-ups', 'interviews-need-prep']));
+    expect(items[0].priority).toBe('high');
+  });
 });

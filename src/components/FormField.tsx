@@ -4,9 +4,10 @@ import { useAppTheme } from './theme';
 
 type Props = TextInputProps & {
   label: string;
+  error?: string;
 };
 
-export function FormField({ label, style, multiline, ...props }: Props) {
+export function FormField({ label, error, style, multiline, ...props }: Props) {
   const theme = useAppTheme();
   return (
     <View style={styles.wrap}>
@@ -23,6 +24,7 @@ export function FormField({ label, style, multiline, ...props }: Props) {
         textAlignVertical={multiline ? 'top' : 'center'}
         {...props}
       />
+      {!!error && <Body style={{ color: theme.colors.danger }}>{error}</Body>}
     </View>
   );
 }

@@ -9,4 +9,16 @@ describe('jobParser', () => {
     expect(result.keywords).toEqual(expect.arrayContaining(['React', 'React Native', 'Typescript', 'Rest', '3+ years of experience']));
     expect(result.topRequirements.length).toBeGreaterThan(0);
   });
+
+  it('extracts likely title and company from a pasted post', () => {
+    const result = parseJobDescription(`Title: Staff Product Engineer
+Company: Northstar Apps
+Hybrid role requiring TypeScript and SQL.
+Salary $140,000 - $165,000`);
+
+    expect(result.possibleTitle).toBe('Staff Product Engineer');
+    expect(result.possibleCompany).toBe('Northstar Apps');
+    expect(result.workMode).toBe('Hybrid');
+    expect(result.possibleSalaryText).toBe('$140,000 - $165,000');
+  });
 });

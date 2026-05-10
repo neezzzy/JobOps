@@ -7,7 +7,17 @@ export type ParsedJobData = {
   possibleSalaryText?: string;
   workMode?: 'Remote' | 'Hybrid' | 'On-site';
   topRequirements: string[];
+  possibleTitle?: string;
+  possibleCompany?: string;
 };
+
+export const NEXT_ACTION_TYPES = ['Apply by', 'Follow up', 'Prepare', 'Send thank-you', 'Decision deadline'] as const;
+
+export type NextActionType = (typeof NEXT_ACTION_TYPES)[number];
+
+export const PRIORITIES = ['Low', 'Normal', 'High'] as const;
+
+export type ApplicationPriority = (typeof PRIORITIES)[number];
 
 export type JobApplication = {
   id: string;
@@ -17,9 +27,14 @@ export type JobApplication = {
   salary_min?: number | null;
   salary_max?: number | null;
   salary_text?: string | null;
+  work_mode?: 'Remote' | 'Hybrid' | 'On-site' | null;
   posting_url?: string | null;
   source_site?: string | null;
   status: ApplicationStatus;
+  priority?: ApplicationPriority | null;
+  archived_at?: string | null;
+  next_action_type?: NextActionType | null;
+  next_action_date?: string | null;
   date_saved: string;
   date_applied?: string | null;
   resume_version_id?: string | null;

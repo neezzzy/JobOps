@@ -7,8 +7,10 @@ import { FormField } from '@/src/components/FormField';
 import { Screen } from '@/src/components/Screen';
 import { useAppPreferences, useAppTheme } from '@/src/components/theme';
 import { Body, Heading, Title } from '@/src/components/Typography';
-import { clearAllData, exportAllData, importAllData } from '@/src/services/exportImport';
+import { clearAllData, exportAllData, importAllData, previewBackup, type BackupPreview } from '@/src/services/exportImport';
 import { seedDemoData } from '@/src/services/seed';
+import { listApplications, listReminders } from '@/src/db/database';
+import { isIsoDate } from '@/src/utils/dates';
 import type { TextSize, ThemeMode } from '@/src/types/preferences';
 
 export function SettingsScreen() {
@@ -17,18 +19,27 @@ export function SettingsScreen() {
   const [importJson, setImportJson] = useState('');
   const [lastBackup, setLastBackup] = useState('');
   const [backupSummary, setBackupSummary] = useState('');
+  const [restorePreview, setRestorePreview] = useState<BackupPreview | null>(null);
+  const [clearText, setClearText] = useState('');
+  const [health, setHealth] = useState<string[]>([]);
 
   async function exportData() {
     const json = await exportAllData();
+    const nextPreview = previewBackup(json);
     const createdAt = new Date().toLocaleString();
-    const counts = countBackupItems(json);
     setLastBackup(createdAt);
-    setBackupSummary(counts
-      ? `Backup created ${createdAt}. Includes ${counts.applications} jobs, ${counts.resumeVersions} resumes, and ${counts.reminders} reminders.`
+    setBackupSummary(nextPreview.counts
+      ? `Backup created ${createdAt}. Includes ${nextPreview.counts.applications} jobs, ${nextPreview.counts.resume_versions} resumes, and ${nextPreview.counts.reminders} reminders.`
       : `Backup created ${createdAt}.`);
   }
 
   function confirmImport() {
+    const nextPreview = previewBackup(importJson);
+    setRestorePreview(nextPreview);
+    if (!nextPreview.valid) {
+      Alert.alert('Backup problem', nextPreview.error ?? 'Backup could not be read.');
+      return;
+    }
     Alert.alert('Import backup', 'This replaces local JobOps data with the pasted backup.', [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Import', style: 'destructive', onPress: () => void doImport() },
@@ -40,16 +51,33 @@ export function SettingsScreen() {
       await importAllData(importJson);
       Alert.alert('Import complete', 'Backup data is now stored locally.');
       setImportJson('');
+      setRestorePreview(null);
     } catch (error) {
       Alert.alert('Import failed', error instanceof Error ? error.message : 'The backup could not be imported.');
     }
   }
 
   function confirmClear() {
+    if (clearText !== 'DELETE') {
+      Alert.alert('Type DELETE first', 'Enter DELETE to confirm clearing local data.');
+      return;
+    }
     Alert.alert('Clear all data', 'This deletes all local applications, resume versions, reminders, and status history.', [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Clear', style: 'destructive', onPress: () => void clearAllData().then(() => Alert.alert('Data cleared')) },
     ]);
+  }
+
+  async function runHealthCheck() {
+    const applications = await listApplications();
+    const reminders = await listReminders(true);
+    const appIds = new Set(applications.map((item) => item.id));
+    const issues = [
+      ...applications.filter((item) => !item.title || !item.company).map((item) => `Missing display fields: ${item.id}`),
+      ...applications.filter((item) => !isIsoDate(item.date_saved) || !isIsoDate(item.date_applied) || !isIsoDate(item.next_action_date ?? item.follow_up_date)).map((item) => `Invalid date: ${item.title}`),
+      ...reminders.filter((item) => !appIds.has(item.application_id)).map((item) => `Reminder is detached: ${item.title}`),
+    ];
+    setHealth(issues.length ? issues : ['No local data issues found.']);
   }
 
   function confirmSeed() {
@@ -119,8 +147,20 @@ export function SettingsScreen() {
         <Button onPress={() => void exportData()}>Create backup</Button>
         {!!lastBackup && <Body muted>Last backup created {lastBackup}</Body>}
         {!!backupSummary && <Body>{backupSummary}</Body>}
-        <FormField label="Restore from backup" value={importJson} onChangeText={setImportJson} multiline />
+        <FormField label="Restore from backup" value={importJson} onChangeText={(value) => {
+          setImportJson(value);
+          setRestorePreview(value.trim() ? previewBackup(value) : null);
+        }} multiline />
+        {!!restorePreview && !restorePreview.valid && <Body muted>{restorePreview.error}</Body>}
+        {!!restorePreview?.counts && <Body muted>Restore preview: {restorePreview.counts.applications} jobs, {restorePreview.counts.resume_versions} resumes, {restorePreview.counts.reminders} reminders.</Body>}
         <Button variant="secondary" disabled={!importJson.trim()} onPress={confirmImport}>Restore backup</Button>
+      </Card>
+
+      <Card>
+        <Heading>Data health</Heading>
+        <Body muted>Check local records for invalid dates or detached reminders.</Body>
+        <Button variant="secondary" onPress={() => void runHealthCheck()}>Run check</Button>
+        {health.map((item) => <Body key={item} muted>{item}</Body>)}
       </Card>
 
       <Card>
@@ -132,6 +172,7 @@ export function SettingsScreen() {
       <Card>
         <Heading>Data reset</Heading>
         <Body muted>Remove local jobs, resumes, follow-ups, and history from this device.</Body>
+        <FormField label="Type DELETE to confirm" value={clearText} onChangeText={setClearText} autoCapitalize="characters" />
         <Button variant="danger" onPress={confirmClear}>Clear all data</Button>
       </Card>
 
@@ -183,19 +224,6 @@ function PreferenceChoice({ label, selected, onPress }: { label: string; selecte
       <Body style={{ color: selected ? theme.colors.primaryText : theme.colors.text }}>{label}</Body>
     </Pressable>
   );
-}
-
-function countBackupItems(json: string) {
-  try {
-    const parsed = JSON.parse(json) as { applications?: unknown[]; resume_versions?: unknown[]; reminders?: unknown[] };
-    return {
-      applications: parsed.applications?.length ?? 0,
-      resumeVersions: parsed.resume_versions?.length ?? 0,
-      reminders: parsed.reminders?.length ?? 0,
-    };
-  } catch {
-    return null;
-  }
 }
 
 const styles = StyleSheet.create({

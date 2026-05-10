@@ -1,5 +1,5 @@
 import * as SQLite from 'expo-sqlite';
-import { APPLICATION_STATUSES, type ApplicationInput, type ApplicationStatus, type JobApplication, type Reminder, type StatusHistory } from '@/src/types/application';
+import { APPLICATION_STATUSES, type ApplicationInput, type ApplicationStatus, type JobApplication, type NextActionType, type Reminder, type StatusHistory } from '@/src/types/application';
 import { defaultPreferences, type AppPreferences } from '@/src/types/preferences';
 import type { ResumeVersion, ResumeVersionInput } from '@/src/types/resume';
 import { createId } from '@/src/utils/ids';
@@ -32,12 +32,14 @@ export async function createApplication(input: ApplicationInput) {
   const db = await getDb();
   const id = createId('app');
   const timestamp = nowIso();
+  const nextActionType = input.next_action_type ?? suggestedActionForStatus(input.status);
+  const nextActionDate = input.next_action_date ?? input.follow_up_date ?? null;
   await db.runAsync(
     `INSERT INTO applications (
-      id, title, company, location, salary_min, salary_max, salary_text, posting_url, source_site,
-      status, date_saved, date_applied, resume_version_id, cover_letter_version, follow_up_date,
+      id, title, company, location, salary_min, salary_max, salary_text, work_mode, posting_url, source_site,
+      status, priority, archived_at, next_action_type, next_action_date, date_saved, date_applied, resume_version_id, cover_letter_version, follow_up_date,
       notes, job_description, parsed_keywords, created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     id,
     input.title,
     input.company,
@@ -45,9 +47,14 @@ export async function createApplication(input: ApplicationInput) {
     input.salary_min ?? null,
     input.salary_max ?? null,
     input.salary_text ?? null,
+    input.work_mode ?? null,
     input.posting_url ?? null,
     input.source_site ?? null,
     input.status,
+    input.priority ?? 'Normal',
+    input.archived_at ?? null,
+    nextActionType,
+    nextActionDate,
     input.date_saved,
     input.date_applied ?? null,
     input.resume_version_id ?? null,
@@ -60,7 +67,7 @@ export async function createApplication(input: ApplicationInput) {
     timestamp,
   );
   await addStatusHistory(id, null, input.status);
-  await syncReminder(id, input.title, input.company, input.follow_up_date ?? null);
+  await syncReminder(id, input.title, input.company, nextActionDate, nextActionType);
   return id;
 }
 
@@ -69,10 +76,12 @@ export async function updateApplication(id: string, input: ApplicationInput) {
   if (!existing) return;
   const db = await getDb();
   const timestamp = nowIso();
+  const nextActionType = input.next_action_type ?? suggestedActionForStatus(input.status);
+  const nextActionDate = input.next_action_date ?? input.follow_up_date ?? null;
   await db.runAsync(
     `UPDATE applications SET
-      title = ?, company = ?, location = ?, salary_min = ?, salary_max = ?, salary_text = ?,
-      posting_url = ?, source_site = ?, status = ?, date_saved = ?, date_applied = ?,
+      title = ?, company = ?, location = ?, salary_min = ?, salary_max = ?, salary_text = ?, work_mode = ?,
+      posting_url = ?, source_site = ?, status = ?, priority = ?, archived_at = ?, next_action_type = ?, next_action_date = ?, date_saved = ?, date_applied = ?,
       resume_version_id = ?, cover_letter_version = ?, follow_up_date = ?, notes = ?,
       job_description = ?, parsed_keywords = ?, updated_at = ?
     WHERE id = ?`,
@@ -82,9 +91,14 @@ export async function updateApplication(id: string, input: ApplicationInput) {
     input.salary_min ?? null,
     input.salary_max ?? null,
     input.salary_text ?? null,
+    input.work_mode ?? null,
     input.posting_url ?? null,
     input.source_site ?? null,
     input.status,
+    input.priority ?? 'Normal',
+    input.archived_at ?? null,
+    nextActionType,
+    nextActionDate,
     input.date_saved,
     input.date_applied ?? null,
     input.resume_version_id ?? null,
@@ -99,7 +113,7 @@ export async function updateApplication(id: string, input: ApplicationInput) {
   if (existing.status !== input.status) {
     await addStatusHistory(id, existing.status, input.status);
   }
-  await syncReminder(id, input.title, input.company, input.follow_up_date ?? null);
+  await syncReminder(id, input.title, input.company, nextActionDate, nextActionType);
 }
 
 export async function changeApplicationStatus(id: string, nextStatus: ApplicationStatus) {
@@ -107,8 +121,21 @@ export async function changeApplicationStatus(id: string, nextStatus: Applicatio
   if (!existing || existing.status === nextStatus) return;
   const db = await getDb();
   const timestamp = nowIso();
-  await db.runAsync('UPDATE applications SET status = ?, date_applied = COALESCE(date_applied, ?), updated_at = ? WHERE id = ?', nextStatus, nextStatus === 'Applied' ? timestamp.slice(0, 10) : null, timestamp, id);
+  const suggested = suggestedActionForStatus(nextStatus);
+  const suggestedDate = suggestedDateForStatus(nextStatus);
+  await db.runAsync(
+    'UPDATE applications SET status = ?, date_applied = COALESCE(date_applied, ?), next_action_type = ?, next_action_date = COALESCE(next_action_date, follow_up_date, ?), follow_up_date = COALESCE(follow_up_date, ?), updated_at = ? WHERE id = ?',
+    nextStatus,
+    nextStatus === 'Applied' ? timestamp.slice(0, 10) : null,
+    suggested,
+    suggestedDate,
+    suggestedDate,
+    timestamp,
+    id,
+  );
   await addStatusHistory(id, existing.status, nextStatus);
+  const updated = await getApplication(id);
+  if (updated) await syncReminder(id, updated.title, updated.company, updated.next_action_date ?? updated.follow_up_date ?? null, updated.next_action_type ?? suggested);
 }
 
 export async function deleteApplication(id: string) {
@@ -195,6 +222,20 @@ export async function setReminderCompleted(id: string, completed: boolean) {
   await db.runAsync('UPDATE reminders SET completed = ?, updated_at = ? WHERE id = ?', completed ? 1 : 0, nowIso(), id);
 }
 
+export async function findDuplicateApplication(input: Pick<ApplicationInput, 'title' | 'company' | 'posting_url'>) {
+  const db = await getDb();
+  const postingUrl = input.posting_url?.trim();
+  if (postingUrl) {
+    const existing = await db.getFirstAsync<JobApplication>('SELECT * FROM applications WHERE posting_url = ? LIMIT 1', postingUrl);
+    if (existing) return existing;
+  }
+  const title = compactKey(input.title);
+  const company = compactKey(input.company);
+  if (!title || !company) return null;
+  const rows = await db.getAllAsync<JobApplication>('SELECT * FROM applications WHERE lower(company) = lower(?)', input.company.trim());
+  return rows.find((row) => compactKey(row.title) === title || compactKey(row.title).includes(title) || title.includes(compactKey(row.title))) ?? null;
+}
+
 export async function listStatusHistory(applicationId: string) {
   const db = await getDb();
   return db.getAllAsync<StatusHistory>('SELECT * FROM status_history WHERE application_id = ? ORDER BY changed_at DESC', applicationId);
@@ -228,7 +269,7 @@ async function addStatusHistory(applicationId: string, oldStatus: string | null,
   await db.runAsync('INSERT INTO status_history (id, application_id, old_status, new_status, changed_at) VALUES (?, ?, ?, ?, ?)', createId('hist'), applicationId, oldStatus, newStatus, nowIso());
 }
 
-async function syncReminder(applicationId: string, title: string, company: string, date: string | null) {
+async function syncReminder(applicationId: string, title: string, company: string, date: string | null, actionType?: NextActionType | null) {
   const db = await getDb();
   const existing = await db.getFirstAsync<Reminder>('SELECT * FROM reminders WHERE application_id = ?', applicationId);
   if (!date) {
@@ -236,10 +277,32 @@ async function syncReminder(applicationId: string, title: string, company: strin
     return;
   }
   const timestamp = nowIso();
-  const reminderTitle = `Follow up: ${title} at ${company}`;
+  const reminderTitle = `${actionType ?? 'Follow up'}: ${title} at ${company}`;
   if (existing) {
     await db.runAsync('UPDATE reminders SET reminder_date = ?, title = ?, completed = 0, updated_at = ? WHERE application_id = ?', date, reminderTitle, timestamp, applicationId);
   } else {
     await db.runAsync('INSERT INTO reminders (id, application_id, reminder_date, title, completed, created_at, updated_at) VALUES (?, ?, ?, ?, 0, ?, ?)', createId('rem'), applicationId, date, reminderTitle, timestamp, timestamp);
   }
+}
+
+function suggestedActionForStatus(status: ApplicationStatus): NextActionType | null {
+  if (status === 'Saved') return 'Apply by';
+  if (status === 'Applied') return 'Follow up';
+  if (status === 'Interview') return 'Prepare';
+  if (status === 'Offer') return 'Decision deadline';
+  return null;
+}
+
+function suggestedDateForStatus(status: ApplicationStatus) {
+  const now = new Date();
+  if (status === 'Applied') now.setDate(now.getDate() + 7);
+  if (status === 'Interview') now.setDate(now.getDate() + 1);
+  if (status === 'Offer') now.setDate(now.getDate() + 3);
+  if (status === 'Saved') now.setDate(now.getDate() + 3);
+  if (status === 'Rejected') return null;
+  return now.toISOString().slice(0, 10);
+}
+
+function compactKey(value?: string | null) {
+  return value?.toLowerCase().replace(/[^a-z0-9]+/g, '').trim() ?? '';
 }

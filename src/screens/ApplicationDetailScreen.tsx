@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
-import { Alert, Pressable, StyleSheet, View } from 'react-native';
+import { Alert, Linking, Pressable, StyleSheet, View } from 'react-native';
 import { Link, router, useFocusEffect } from 'expo-router';
 import { Button } from '@/src/components/Button';
 import { Card } from '@/src/components/Card';
@@ -9,20 +9,24 @@ import { Body, Heading, Title } from '@/src/components/Typography';
 import { useAppTheme } from '@/src/components/theme';
 import { APPLICATION_STATUSES, type ApplicationStatus, type JobApplication, type StatusHistory } from '@/src/types/application';
 import type { ResumeVersion } from '@/src/types/resume';
-import { changeApplicationStatus, deleteApplication, getApplication, getResumeVersion, listStatusHistory } from '@/src/db/database';
+import { changeApplicationStatus, deleteApplication, getApplication, getResumeVersion, listResumeVersions, listStatusHistory } from '@/src/db/database';
+import { buildMatch, rankResumesForApplication, type ResumeMatch } from '@/src/services/resumeMatch';
 import { displayDate } from '@/src/utils/dates';
 
 export function ApplicationDetailScreen({ id }: { id: string }) {
   const theme = useAppTheme();
   const [application, setApplication] = useState<JobApplication | null>(null);
   const [resume, setResume] = useState<ResumeVersion | null>(null);
+  const [resumeMatches, setResumeMatches] = useState<ResumeMatch[]>([]);
   const [history, setHistory] = useState<StatusHistory[]>([]);
 
   const load = useCallback(async () => {
     const app = await getApplication(id);
+    const allResumes = await listResumeVersions();
     setApplication(app ?? null);
     setHistory(await listStatusHistory(id));
     setResume(app?.resume_version_id ? await getResumeVersion(app.resume_version_id) : null);
+    setResumeMatches(app ? rankResumesForApplication(app, allResumes) : []);
   }, [id]);
 
   useFocusEffect(useCallback(() => { void load(); }, [load]));
@@ -45,6 +49,18 @@ export function ApplicationDetailScreen({ id }: { id: string }) {
       { text: 'Cancel', style: 'cancel' },
       { text: 'Delete', style: 'destructive', onPress: () => void remove() },
     ]);
+  }
+
+  async function openPosting() {
+    if (!application?.posting_url) {
+      Alert.alert('No posting link', 'Add the original job posting link first.');
+      return;
+    }
+    if (!/^https?:\/\/\S+\.\S+/.test(application.posting_url)) {
+      Alert.alert('Invalid link', 'The posting link needs to start with http or https.');
+      return;
+    }
+    await Linking.openURL(application.posting_url);
   }
 
   async function remove() {
@@ -73,6 +89,7 @@ export function ApplicationDetailScreen({ id }: { id: string }) {
 
       <View style={styles.actions}>
         <Link href={`/application/${id}/edit`} asChild><Button>Edit</Button></Link>
+        <Button variant="secondary" onPress={() => void openPosting()}>Open posting</Button>
         <Button variant="danger" onPress={confirmDelete}>Delete</Button>
       </View>
 
@@ -91,8 +108,10 @@ export function ApplicationDetailScreen({ id }: { id: string }) {
         <Heading>Details</Heading>
         <Detail label="Location" value={application.location} />
         <Detail label="Salary" value={application.salary_text} />
+        <Detail label="Work mode" value={application.work_mode} />
         <Detail label="Job posting link" value={application.posting_url} />
         <Detail label="Source" value={application.source_site} />
+        <Detail label="Priority" value={application.priority} />
         <Detail label="Date saved" value={displayDate(application.date_saved)} />
         <Detail label="Date applied" value={displayDate(application.date_applied)} />
         <Detail label="Resume version" value={resume?.name} />
@@ -100,13 +119,19 @@ export function ApplicationDetailScreen({ id }: { id: string }) {
       </Card>
 
       <Card>
-        <Heading>Follow-up</Heading>
-        <Body>{displayDate(application.follow_up_date)}</Body>
+        <Heading>Next action</Heading>
+        <Body>{application.next_action_type || 'Follow up'}</Body>
+        <Body muted>{displayDate(application.next_action_date ?? application.follow_up_date)}</Body>
       </Card>
 
       <Card>
         <Heading>Job highlights</Heading>
         <Body muted>{keywords.length ? keywords.join(', ') : 'No highlights found yet.'}</Body>
+      </Card>
+
+      <Card>
+        <Heading>Resume fit</Heading>
+        <ResumeFit current={resume ? buildMatch(application, resume, keywords) : null} best={resumeMatches[0]} />
       </Card>
 
       <Card>
@@ -131,6 +156,19 @@ export function ApplicationDetailScreen({ id }: { id: string }) {
   );
 }
 
+function ResumeFit({ current, best }: { current: ResumeMatch | null; best?: ResumeMatch }) {
+  const match = current ?? best;
+  if (!match?.resume) return <Body muted>Add a resume version to see local keyword fit.</Body>;
+  return (
+    <View style={styles.fit}>
+      <Body>{current ? `Current: ${match.resume.name}` : `Suggested: ${match.resume.name}`}</Body>
+      <Body muted>{Math.round(match.score * 100)}% keyword fit</Body>
+      <Body muted>Matched: {match.matched.length ? match.matched.join(', ') : 'None yet'}</Body>
+      <Body muted>Missing: {match.missing.length ? match.missing.join(', ') : 'No obvious gaps'}</Body>
+    </View>
+  );
+}
+
 function Detail({ label, value }: { label: string; value?: string | null }) {
   return (
     <View>
@@ -146,4 +184,5 @@ const styles = StyleSheet.create({
   actions: { flexDirection: 'row', gap: 10, flexWrap: 'wrap' },
   wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   choice: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 9 },
+  fit: { gap: 6 },
 });

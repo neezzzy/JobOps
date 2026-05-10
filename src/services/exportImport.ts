@@ -4,18 +4,31 @@ import type { ResumeVersion } from '@/src/types/resume';
 
 export type JobOpsBackup = {
   exportedAt: string;
-  version: 1;
+  version: 1 | 2;
   applications: JobApplication[];
   resume_versions: ResumeVersion[];
   status_history: StatusHistory[];
   reminders: Reminder[];
 };
 
+export type BackupPreview = {
+  valid: boolean;
+  version?: number;
+  exportedAt?: string;
+  counts?: {
+    applications: number;
+    resume_versions: number;
+    reminders: number;
+    status_history: number;
+  };
+  error?: string;
+};
+
 export async function exportAllData(): Promise<string> {
   const db = await getDb();
   const backup: JobOpsBackup = {
     exportedAt: new Date().toISOString(),
-    version: 1,
+    version: 2,
     applications: await db.getAllAsync<JobApplication>('SELECT * FROM applications ORDER BY created_at DESC'),
     resume_versions: await db.getAllAsync<ResumeVersion>('SELECT * FROM resume_versions ORDER BY created_at DESC'),
     status_history: await db.getAllAsync<StatusHistory>('SELECT * FROM status_history ORDER BY changed_at DESC'),
@@ -24,11 +37,29 @@ export async function exportAllData(): Promise<string> {
   return JSON.stringify(backup, null, 2);
 }
 
+export function previewBackup(json: string): BackupPreview {
+  try {
+    const parsed = JSON.parse(json) as Partial<JobOpsBackup>;
+    validateBackupShape(parsed);
+    return {
+      valid: true,
+      version: parsed.version ?? 1,
+      exportedAt: parsed.exportedAt,
+      counts: {
+        applications: parsed.applications?.length ?? 0,
+        resume_versions: parsed.resume_versions?.length ?? 0,
+        reminders: parsed.reminders?.length ?? 0,
+        status_history: parsed.status_history?.length ?? 0,
+      },
+    };
+  } catch (error) {
+    return { valid: false, error: error instanceof Error ? error.message : 'Backup could not be read.' };
+  }
+}
+
 export async function importAllData(json: string) {
   const parsed = JSON.parse(json) as Partial<JobOpsBackup>;
-  if (!Array.isArray(parsed.applications) || !Array.isArray(parsed.resume_versions) || !Array.isArray(parsed.status_history) || !Array.isArray(parsed.reminders)) {
-    throw new Error('This backup is missing required data.');
-  }
+  validateBackupShape(parsed);
 
   const db = await getDb();
   await clearAllData();
@@ -53,10 +84,10 @@ export async function importAllData(json: string) {
   for (const item of parsed.applications) {
     await db.runAsync(
       `INSERT INTO applications (
-        id, title, company, location, salary_min, salary_max, salary_text, posting_url, source_site,
-        status, date_saved, date_applied, resume_version_id, cover_letter_version, follow_up_date,
+        id, title, company, location, salary_min, salary_max, salary_text, work_mode, posting_url, source_site,
+        status, priority, archived_at, next_action_type, next_action_date, date_saved, date_applied, resume_version_id, cover_letter_version, follow_up_date,
         notes, job_description, parsed_keywords, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       item.id,
       item.title,
       item.company,
@@ -64,9 +95,14 @@ export async function importAllData(json: string) {
       item.salary_min ?? null,
       item.salary_max ?? null,
       item.salary_text ?? null,
+      item.work_mode ?? null,
       item.posting_url ?? null,
       item.source_site ?? null,
       item.status,
+      item.priority ?? 'Normal',
+      item.archived_at ?? null,
+      item.next_action_type ?? null,
+      item.next_action_date ?? item.follow_up_date ?? null,
       item.date_saved,
       item.date_applied ?? null,
       item.resume_version_id ?? null,
@@ -93,4 +129,10 @@ export async function clearAllData() {
   await db.runAsync('DELETE FROM status_history');
   await db.runAsync('DELETE FROM applications');
   await db.runAsync('DELETE FROM resume_versions');
+}
+
+function validateBackupShape(parsed: Partial<JobOpsBackup>): asserts parsed is JobOpsBackup {
+  if (!Array.isArray(parsed.applications) || !Array.isArray(parsed.resume_versions) || !Array.isArray(parsed.status_history) || !Array.isArray(parsed.reminders)) {
+    throw new Error('This backup is missing required data.');
+  }
 }

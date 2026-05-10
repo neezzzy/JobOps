@@ -32,9 +32,36 @@ describe('database', () => {
     });
 
     expect(id).toMatch(/^app_/);
-    expect(mockRunAsync).toHaveBeenCalledWith(expect.stringContaining('INSERT INTO applications'), expect.stringMatching(/^app_/), 'Product Analyst', 'Acme', null, null, null, null, null, 'Saved', '2026-05-01', null, null, null, '2026-05-05', null, null, null, expect.any(String), expect.any(String));
+    expect(mockRunAsync).toHaveBeenCalledWith(
+      expect.stringContaining('INSERT INTO applications'),
+      expect.stringMatching(/^app_/),
+      'Product Analyst',
+      'Acme',
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      'Saved',
+      'Normal',
+      null,
+      'Apply by',
+      '2026-05-05',
+      '2026-05-01',
+      null,
+      null,
+      null,
+      '2026-05-05',
+      null,
+      null,
+      null,
+      expect.any(String),
+      expect.any(String),
+    );
     expect(mockRunAsync).toHaveBeenCalledWith(expect.stringContaining('INSERT INTO status_history'), expect.stringMatching(/^hist_/), expect.stringMatching(/^app_/), null, 'Saved', expect.any(String));
-    expect(mockRunAsync).toHaveBeenCalledWith(expect.stringContaining('INSERT INTO reminders'), expect.stringMatching(/^rem_/), expect.stringMatching(/^app_/), '2026-05-05', 'Follow up: Product Analyst at Acme', expect.any(String), expect.any(String));
+    expect(mockRunAsync).toHaveBeenCalledWith(expect.stringContaining('INSERT INTO reminders'), expect.stringMatching(/^rem_/), expect.stringMatching(/^app_/), '2026-05-05', 'Apply by: Product Analyst at Acme', expect.any(String), expect.any(String));
   });
 
   it('deletes related application data', async () => {

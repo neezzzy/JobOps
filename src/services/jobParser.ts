@@ -31,6 +31,7 @@ const SKILLS = [
 
 export function parseJobDescription(text: string): ParsedJobData {
   const normalized = text.replace(/\s+/g, ' ').trim();
+  const originalLines = text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
   const lower = normalized.toLowerCase();
   const keywords = new Set<string>();
 
@@ -81,6 +82,8 @@ export function parseJobDescription(text: string): ParsedJobData {
     keywords: Array.from(keywords).slice(0, 24),
     possibleSalaryText: salaryMatch?.[0],
     workMode,
+    possibleTitle: findPossibleTitle(originalLines),
+    possibleCompany: findPossibleCompany(originalLines),
     topRequirements,
   };
 }
@@ -90,4 +93,26 @@ function titleCase(value: string) {
     .split(' ')
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(' ');
+}
+
+function findPossibleTitle(lines: string[]) {
+  const labeled = lines.find((line) => /^(?:job\s*)?title\s*[:|-]/i.test(line));
+  if (labeled) return labeled.replace(/^(?:job\s*)?title\s*[:|-]\s*/i, '').trim();
+
+  return lines.find((line) =>
+    line.length <= 80 &&
+    /\b(?:engineer|developer|analyst|manager|designer|specialist|coordinator|director|lead|operator|operations|product)\b/i.test(line) &&
+    !/salary|remote|hybrid|onsite|apply|about/i.test(line)
+  );
+}
+
+function findPossibleCompany(lines: string[]) {
+  const labeled = lines.find((line) => /^(?:company|organization|employer)\s*[:|-]/i.test(line));
+  if (labeled) return labeled.replace(/^(?:company|organization|employer)\s*[:|-]\s*/i, '').trim();
+
+  const aboutLine = lines.find((line) => /^about\s+/i.test(line) && line.length <= 80);
+  if (aboutLine) return aboutLine.replace(/^about\s+/i, '').replace(/[:|-].*$/, '').trim();
+
+  const atLine = lines.find((line) => /\bat\s+[A-Z][A-Za-z0-9 &.-]{2,}$/i.test(line) && line.length <= 80);
+  return atLine?.replace(/^.*\bat\s+/i, '').trim();
 }

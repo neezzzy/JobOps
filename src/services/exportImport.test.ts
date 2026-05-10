@@ -1,4 +1,4 @@
-import { clearAllData, importAllData } from './exportImport';
+import { clearAllData, importAllData, previewBackup } from './exportImport';
 
 const mockRunAsync = jest.fn(async () => undefined);
 const mockGetAllAsync = jest.fn(async () => []);
@@ -34,6 +34,21 @@ describe('exportImport', () => {
 
     expect(mockRunAsync).toHaveBeenCalledWith('DELETE FROM reminders');
     expect(mockRunAsync).toHaveBeenCalledWith(expect.stringContaining('INSERT INTO resume_versions'), 'res_1', 'Main resume', 'Analyst', 'Notes', null, null, null, null, '2026-05-01T00:00:00.000Z', '2026-05-01T00:00:00.000Z');
+  });
+
+  it('previews v1 and v2 compatible backups', () => {
+    const preview = previewBackup(JSON.stringify({
+      version: 2,
+      exportedAt: '2026-05-01T00:00:00.000Z',
+      applications: [{}],
+      resume_versions: [],
+      status_history: [],
+      reminders: [{}],
+    }));
+
+    expect(preview.valid).toBe(true);
+    expect(preview.counts?.applications).toBe(1);
+    expect(preview.counts?.reminders).toBe(1);
   });
 
   it('clears local tables in dependency order', async () => {

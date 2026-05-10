@@ -40,12 +40,17 @@ jest.mock('@/src/db/database', () => ({
 
 jest.mock('@/src/services/exportImport', () => ({
   clearAllData: jest.fn(async () => undefined),
-  exportAllData: jest.fn(async () => JSON.stringify({
-    applications: [{}],
-    resume_versions: [{}, {}],
-    reminders: [{}, {}, {}],
-  })),
+  exportAllData: jest.fn(async () => 'backup-data'),
   importAllData: jest.fn(async () => undefined),
+  previewBackup: jest.fn(() => ({
+    valid: true,
+    counts: {
+      applications: 1,
+      resume_versions: 2,
+      reminders: 3,
+      status_history: 4,
+    },
+  })),
 }));
 
 jest.mock('@/src/services/seed', () => ({
@@ -60,9 +65,10 @@ describe('screens', () => {
   it('renders dashboard recommendations and linked sections', async () => {
     render(<DashboardScreen />);
 
-    expect(await screen.findByText('Recommendations')).toBeTruthy();
+    expect(await screen.findByText('Today')).toBeTruthy();
     expect(await screen.findByText('1 saved job needs a next step')).toBeTruthy();
     expect(screen.getByText('Total applications')).toBeTruthy();
+    expect(screen.getByText('Insights')).toBeTruthy();
   });
 
   it('renders settings with plain backup language', () => {
@@ -86,7 +92,7 @@ describe('screens', () => {
 
     expect(await screen.findByText(/Backup created/)).toBeTruthy();
     expect(screen.getByText(/Includes 1 jobs, 2 resumes, and 3 reminders/)).toBeTruthy();
-    expect(screen.queryByText(/applications/)).toBeNull();
+    expect(screen.queryByText('backup-data')).toBeNull();
     expect(screen.queryByText('Saved backup')).toBeNull();
   });
 
@@ -102,12 +108,14 @@ describe('screens', () => {
 
     await waitFor(() => expect(screen.getByText('Product Analyst')).toBeTruthy());
     expect(screen.getByText('Saved (1)')).toBeTruthy();
+    expect(screen.getByText('Quick filters')).toBeTruthy();
   });
 
   it('renders reminders with follow-up actions', async () => {
     render(<RemindersScreen />);
 
     expect(await screen.findByText('Follow up: Product Analyst at Acme')).toBeTruthy();
+    expect(screen.getByText('Overdue')).toBeTruthy();
     expect(screen.getByText('Complete')).toBeTruthy();
   });
 });

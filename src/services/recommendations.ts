@@ -1,4 +1,5 @@
 import type { JobApplication, Reminder } from '@/src/types/application';
+import { todayIsoDate } from '@/src/utils/dates';
 
 export type Recommendation = {
   id: string;
@@ -11,7 +12,7 @@ export type Recommendation = {
 type ReminderRow = Reminder & { company?: string; job_title?: string };
 
 export function buildRecommendations(applications: JobApplication[], reminders: ReminderRow[], today = new Date()): Recommendation[] {
-  const todayKey = today.toISOString().slice(0, 10);
+  const todayKey = Number.isNaN(today.getTime()) ? todayIsoDate() : today.toISOString().slice(0, 10);
   const recommendations: Recommendation[] = [];
 
   const overdue = reminders.filter((reminder) => !reminder.completed && reminder.reminder_date < todayKey);
@@ -20,6 +21,17 @@ export function buildRecommendations(applications: JobApplication[], reminders: 
       id: 'overdue-follow-ups',
       title: `${overdue.length} overdue follow-up${overdue.length === 1 ? '' : 's'}`,
       detail: 'Send a short check-in or mark them complete.',
+      href: '/reminders',
+      priority: 'high',
+    });
+  }
+
+  const dueToday = reminders.filter((reminder) => !reminder.completed && reminder.reminder_date === todayKey);
+  if (dueToday.length > 0) {
+    recommendations.push({
+      id: 'today-follow-ups',
+      title: `${dueToday.length} follow-up${dueToday.length === 1 ? '' : 's'} due today`,
+      detail: 'Clear these while the context is fresh.',
       href: '/reminders',
       priority: 'high',
     });
@@ -58,7 +70,18 @@ export function buildRecommendations(applications: JobApplication[], reminders: 
     });
   }
 
-  return recommendations.slice(0, 4);
+  const interviewsWithoutPrep = applications.filter((item) => item.status === 'Interview' && !(item.next_action_date ?? item.follow_up_date));
+  if (interviewsWithoutPrep.length > 0) {
+    recommendations.push({
+      id: 'interviews-need-prep',
+      title: interviewsWithoutPrep.length === 1 ? '1 interview needs prep time' : `${interviewsWithoutPrep.length} interviews need prep time`,
+      detail: 'Add a prep reminder before the conversation.',
+      href: '/jobs?status=Interview',
+      priority: 'high',
+    });
+  }
+
+  return recommendations.sort((a, b) => priorityWeight(a.priority) - priorityWeight(b.priority)).slice(0, 5);
 }
 
 function daysBetween(value: string, todayKey: string) {
@@ -66,4 +89,8 @@ function daysBetween(value: string, todayKey: string) {
   const end = new Date(todayKey);
   if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return 0;
   return Math.floor((end.getTime() - start.getTime()) / 86400000);
+}
+
+function priorityWeight(priority: Recommendation['priority']) {
+  return priority === 'high' ? 0 : priority === 'medium' ? 1 : 2;
 }
