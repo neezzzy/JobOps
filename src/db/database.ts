@@ -4,6 +4,7 @@ import { defaultPreferences, type AppPreferences } from '@/src/types/preferences
 import type { ResumeVersion, ResumeVersionInput } from '@/src/types/resume';
 import { createId } from '@/src/utils/ids';
 import { nowIso } from '@/src/utils/dates';
+import { cancelNotification, syncReminderNotification } from '@/src/services/notificationScheduler';
 import { runMigrations } from './migrations';
 
 let dbPromise: Promise<SQLite.SQLiteDatabase> | null = null;
@@ -140,6 +141,10 @@ export async function changeApplicationStatus(id: string, nextStatus: Applicatio
 
 export async function deleteApplication(id: string) {
   const db = await getDb();
+  const reminders = await db.getAllAsync<Reminder>('SELECT * FROM reminders WHERE application_id = ?', id);
+  for (const reminder of reminders) {
+    await cancelNotification(reminder.notification_id);
+  }
   await db.runAsync('DELETE FROM reminders WHERE application_id = ?', id);
   await db.runAsync('DELETE FROM status_history WHERE application_id = ?', id);
   await db.runAsync('DELETE FROM applications WHERE id = ?', id);
@@ -215,11 +220,13 @@ export async function listReminders(includeCompleted = false) {
 export async function updateReminderDate(id: string, reminderDate: string) {
   const db = await getDb();
   await db.runAsync('UPDATE reminders SET reminder_date = ?, completed = 0, updated_at = ? WHERE id = ?', reminderDate, nowIso(), id);
+  await refreshReminderNotification(id);
 }
 
 export async function setReminderCompleted(id: string, completed: boolean) {
   const db = await getDb();
   await db.runAsync('UPDATE reminders SET completed = ?, updated_at = ? WHERE id = ?', completed ? 1 : 0, nowIso(), id);
+  await refreshReminderNotification(id);
 }
 
 export async function findDuplicateApplication(input: Pick<ApplicationInput, 'title' | 'company' | 'posting_url'>) {
@@ -273,16 +280,35 @@ async function syncReminder(applicationId: string, title: string, company: strin
   const db = await getDb();
   const existing = await db.getFirstAsync<Reminder>('SELECT * FROM reminders WHERE application_id = ?', applicationId);
   if (!date) {
-    if (existing) await db.runAsync('DELETE FROM reminders WHERE application_id = ?', applicationId);
+    if (existing) {
+      await cancelNotification(existing.notification_id);
+      await db.runAsync('DELETE FROM reminders WHERE application_id = ?', applicationId);
+    }
     return;
   }
   const timestamp = nowIso();
   const reminderTitle = `${actionType ?? 'Follow up'}: ${title} at ${company}`;
   if (existing) {
     await db.runAsync('UPDATE reminders SET reminder_date = ?, title = ?, completed = 0, updated_at = ? WHERE application_id = ?', date, reminderTitle, timestamp, applicationId);
+    await refreshReminderNotification(existing.id);
   } else {
-    await db.runAsync('INSERT INTO reminders (id, application_id, reminder_date, title, completed, created_at, updated_at) VALUES (?, ?, ?, ?, 0, ?, ?)', createId('rem'), applicationId, date, reminderTitle, timestamp, timestamp);
+    const reminderId = createId('rem');
+    await db.runAsync('INSERT INTO reminders (id, application_id, reminder_date, title, completed, notification_id, created_at, updated_at) VALUES (?, ?, ?, ?, 0, NULL, ?, ?)', reminderId, applicationId, date, reminderTitle, timestamp, timestamp);
+    await refreshReminderNotification(reminderId);
   }
+}
+
+async function refreshReminderNotification(id: string) {
+  const db = await getDb();
+  const reminder = await db.getFirstAsync<Reminder>('SELECT * FROM reminders WHERE id = ?', id);
+  const notificationId = await syncReminderNotification(reminder, await getReminderNotificationsEnabled());
+  await db.runAsync('UPDATE reminders SET notification_id = ?, updated_at = ? WHERE id = ?', notificationId, nowIso(), id);
+}
+
+async function getReminderNotificationsEnabled() {
+  const db = await getDb();
+  const row = await db.getFirstAsync<{ value: string }>('SELECT value FROM preferences WHERE key = ?', 'notificationsEnabled');
+  return row?.value === 'true';
 }
 
 function suggestedActionForStatus(status: ApplicationStatus): NextActionType | null {

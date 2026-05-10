@@ -41,7 +41,12 @@ jest.mock('@/src/db/database', () => ({
 jest.mock('@/src/services/exportImport', () => ({
   clearAllData: jest.fn(async () => undefined),
   exportAllData: jest.fn(async () => 'backup-data'),
+  exportApplicationsCsv: jest.fn(async () => 'title,company\nProduct Analyst,Acme'),
+  exportResumeVersionsCsv: jest.fn(async () => 'name,target_role\nMain,Analyst'),
+  exportRemindersCsv: jest.fn(async () => 'title,reminder_date\nFollow up,2026-05-05'),
   importAllData: jest.fn(async () => undefined),
+  importApplicationsCsv: jest.fn(async () => ({ created: 1, updated: 0, skipped: 0 })),
+  previewApplicationsCsv: jest.fn(async () => ({ valid: true, rows: 1, creatable: 1, duplicates: 0, errors: [] })),
   previewBackup: jest.fn(() => ({
     valid: true,
     counts: {
@@ -51,6 +56,14 @@ jest.mock('@/src/services/exportImport', () => ({
       status_history: 4,
     },
   })),
+}));
+
+jest.mock('@/src/services/notifications', () => ({
+  getNotificationPermissionState: jest.fn(async () => 'unavailable'),
+  getNotificationsEnabled: jest.fn(async () => false),
+  requestNotificationPermission: jest.fn(async () => true),
+  rescheduleAllReminderNotifications: jest.fn(async () => undefined),
+  setNotificationsEnabled: jest.fn(async () => undefined),
 }));
 
 jest.mock('@/src/services/seed', () => ({
@@ -71,9 +84,10 @@ describe('screens', () => {
     expect(screen.getByText('Insights')).toBeTruthy();
   });
 
-  it('renders settings with plain backup language', () => {
+  it('renders settings with plain backup language', async () => {
     render(<SettingsScreen />);
 
+    expect(await screen.findByText('Permission: unavailable')).toBeTruthy();
     expect(screen.getByText('Backups')).toBeTruthy();
     expect(screen.getByText('Create backup')).toBeTruthy();
     expect(screen.getByText('Appearance')).toBeTruthy();
@@ -88,6 +102,7 @@ describe('screens', () => {
   it('creates backups without showing raw backup data', async () => {
     render(<SettingsScreen />);
 
+    expect(await screen.findByText('Permission: unavailable')).toBeTruthy();
     fireEvent.press(screen.getByText('Create backup'));
 
     expect(await screen.findByText(/Backup created/)).toBeTruthy();

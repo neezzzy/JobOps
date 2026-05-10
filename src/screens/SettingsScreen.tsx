@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { Alert, Pressable, StyleSheet, View } from 'react-native';
 import Constants from 'expo-constants';
 import { Button } from '@/src/components/Button';
@@ -7,7 +7,8 @@ import { FormField } from '@/src/components/FormField';
 import { Screen } from '@/src/components/Screen';
 import { useAppPreferences, useAppTheme } from '@/src/components/theme';
 import { Body, Heading, Title } from '@/src/components/Typography';
-import { clearAllData, exportAllData, importAllData, previewBackup, type BackupPreview } from '@/src/services/exportImport';
+import { clearAllData, exportAllData, exportApplicationsCsv, exportRemindersCsv, exportResumeVersionsCsv, importAllData, importApplicationsCsv, previewApplicationsCsv, previewBackup, type BackupPreview, type CsvPreview } from '@/src/services/exportImport';
+import { getNotificationPermissionState, getNotificationsEnabled, requestNotificationPermission, rescheduleAllReminderNotifications, setNotificationsEnabled, type NotificationPermissionState } from '@/src/services/notifications';
 import { seedDemoData } from '@/src/services/seed';
 import { listApplications, listReminders } from '@/src/db/database';
 import { isIsoDate } from '@/src/utils/dates';
@@ -19,9 +20,19 @@ export function SettingsScreen() {
   const [importJson, setImportJson] = useState('');
   const [lastBackup, setLastBackup] = useState('');
   const [backupSummary, setBackupSummary] = useState('');
+  const [csvText, setCsvText] = useState('');
+  const [csvImport, setCsvImport] = useState('');
+  const [csvPreview, setCsvPreview] = useState<CsvPreview | null>(null);
+  const [csvSummary, setCsvSummary] = useState('');
+  const [notificationsEnabledState, setNotificationsEnabledState] = useState(false);
+  const [notificationPermission, setNotificationPermission] = useState<NotificationPermissionState>('undetermined');
   const [restorePreview, setRestorePreview] = useState<BackupPreview | null>(null);
   const [clearText, setClearText] = useState('');
   const [health, setHealth] = useState<string[]>([]);
+
+  useEffect(() => {
+    void loadNotificationSettings();
+  }, []);
 
   async function exportData() {
     const json = await exportAllData();
@@ -31,6 +42,83 @@ export function SettingsScreen() {
     setBackupSummary(nextPreview.counts
       ? `Backup created ${createdAt}. Includes ${nextPreview.counts.applications} jobs, ${nextPreview.counts.resume_versions} resumes, and ${nextPreview.counts.reminders} reminders.`
       : `Backup created ${createdAt}.`);
+  }
+
+  async function exportSpreadsheet(kind: 'applications' | 'resumes' | 'reminders') {
+    const nextCsv = kind === 'applications'
+      ? await exportApplicationsCsv()
+      : kind === 'resumes'
+        ? await exportResumeVersionsCsv()
+        : await exportRemindersCsv();
+    setCsvText(nextCsv);
+    setCsvSummary(`${labelForCsvKind(kind)} CSV is ready to copy into Google Sheets.`);
+  }
+
+  async function updateCsvPreview(value: string) {
+    setCsvImport(value);
+    setCsvPreview(value.trim() ? await previewApplicationsCsv(value) : null);
+  }
+
+  async function confirmCsvImport(mode: 'skip' | 'update') {
+    const preview = await previewApplicationsCsv(csvImport);
+    setCsvPreview(preview);
+    if (!preview.valid) {
+      Alert.alert('CSV problem', preview.errors[0] ?? 'CSV could not be read.');
+      return;
+    }
+    Alert.alert('Import applications CSV', `${preview.rows} rows found. ${preview.duplicates} look like existing applications.`, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: mode === 'skip' ? 'Import new' : 'Update existing', onPress: () => void doCsvImport(mode) },
+    ]);
+  }
+
+  async function doCsvImport(mode: 'skip' | 'update') {
+    try {
+      const result = await importApplicationsCsv(csvImport, mode);
+      setCsvSummary(`CSV import complete: ${result.created} created, ${result.updated} updated, ${result.skipped} skipped.`);
+      setCsvImport('');
+      setCsvPreview(null);
+    } catch (error) {
+      Alert.alert('CSV import failed', error instanceof Error ? error.message : 'The CSV could not be imported.');
+    }
+  }
+
+  async function loadNotificationSettings() {
+    setNotificationsEnabledState(await getNotificationsEnabled());
+    setNotificationPermission(await getNotificationPermissionState());
+  }
+
+  async function toggleNotifications() {
+    if (notificationPermission === 'unavailable') {
+      Alert.alert('Notifications unavailable', 'This Expo SDK/runtime does not include native local notifications. Follow-ups still appear in the Reminders tab.');
+      return;
+    }
+    const nextEnabled = !notificationsEnabledState;
+    const granted = nextEnabled ? await requestNotificationPermission() : true;
+    if (!granted) {
+      setNotificationPermission(await getNotificationPermissionState());
+      Alert.alert('Notifications not enabled', 'Device notification permission was not granted.');
+      return;
+    }
+    await setNotificationsEnabled(nextEnabled);
+    await loadNotificationSettings();
+  }
+
+  async function resyncNotifications() {
+    if (notificationPermission === 'unavailable') {
+      Alert.alert('Notifications unavailable', 'This Expo SDK/runtime does not include native local notifications. Follow-ups still appear in the Reminders tab.');
+      return;
+    }
+    const granted = await requestNotificationPermission();
+    if (!granted) {
+      setNotificationPermission(await getNotificationPermissionState());
+      Alert.alert('Notifications not enabled', 'Device notification permission was not granted.');
+      return;
+    }
+    await setNotificationsEnabled(true);
+    await rescheduleAllReminderNotifications();
+    await loadNotificationSettings();
+    Alert.alert('Notifications updated', 'Open follow-up reminders have been scheduled.');
   }
 
   function confirmImport() {
@@ -132,12 +220,6 @@ export function SettingsScreen() {
             <Body>High contrast</Body>
             <Body muted>Use stronger borders and text contrast.</Body>
           </View>
-          <View style={[
-            styles.switchTrack,
-            { backgroundColor: preferences.highContrast ? theme.colors.primary : theme.colors.border },
-          ]}>
-            <View style={[styles.switchThumb, { alignSelf: preferences.highContrast ? 'flex-end' : 'flex-start', backgroundColor: preferences.highContrast ? theme.colors.primaryText : theme.colors.surface }]} />
-          </View>
         </Pressable>
       </Card>
 
@@ -154,6 +236,57 @@ export function SettingsScreen() {
         {!!restorePreview && !restorePreview.valid && <Body muted>{restorePreview.error}</Body>}
         {!!restorePreview?.counts && <Body muted>Restore preview: {restorePreview.counts.applications} jobs, {restorePreview.counts.resume_versions} resumes, {restorePreview.counts.reminders} reminders.</Body>}
         <Button variant="secondary" disabled={!importJson.trim()} onPress={confirmImport}>Restore backup</Button>
+      </Card>
+
+      <Card>
+        <Heading>Spreadsheet import/export</Heading>
+        <Body muted>Use CSV text with Google Sheets or another spreadsheet app.</Body>
+        <View style={styles.actions}>
+          <Button variant="secondary" onPress={() => void exportSpreadsheet('applications')}>Applications CSV</Button>
+          <Button variant="secondary" onPress={() => void exportSpreadsheet('resumes')}>Resumes CSV</Button>
+          <Button variant="secondary" onPress={() => void exportSpreadsheet('reminders')}>Reminders CSV</Button>
+        </View>
+        {!!csvSummary && <Body>{csvSummary}</Body>}
+        <FormField label="CSV export" value={csvText} onChangeText={setCsvText} multiline />
+        <FormField label="Paste applications CSV" value={csvImport} onChangeText={(value) => void updateCsvPreview(value)} multiline />
+        {!!csvPreview && (
+          <Body muted>
+            {csvPreview.valid
+              ? `${csvPreview.rows} rows, ${csvPreview.creatable} new, ${csvPreview.duplicates} duplicates.`
+              : csvPreview.errors[0]}
+          </Body>
+        )}
+        <View style={styles.actions}>
+          <Button variant="secondary" disabled={!csvImport.trim()} onPress={() => void confirmCsvImport('skip')}>Import new rows</Button>
+          <Button variant="secondary" disabled={!csvImport.trim()} onPress={() => void confirmCsvImport('update')}>Update matches</Button>
+        </View>
+      </Card>
+
+      <Card>
+        <Heading>Follow-up notifications</Heading>
+        <Body muted>{notificationPermission === 'unavailable' ? 'Native local notifications are not available in this Expo runtime.' : 'Schedule local device notifications for open reminders.'}</Body>
+        <Body muted>Permission: {notificationPermission}</Body>
+        <Pressable
+          accessibilityRole="switch"
+          accessibilityLabel="Follow-up notifications"
+          accessibilityState={{ checked: notificationsEnabledState }}
+          onPress={() => void toggleNotifications()}
+          style={({ pressed }) => [
+            styles.switchRow,
+            { borderColor: theme.colors.border, backgroundColor: theme.colors.surface, opacity: pressed ? 0.7 : 1 },
+          ]}>
+          <View>
+            <Body>Local notifications</Body>
+            <Body muted>{notificationsEnabledState ? 'Enabled' : 'Disabled'}</Body>
+          </View>
+          <View style={[
+            styles.switchTrack,
+            { backgroundColor: notificationsEnabledState ? theme.colors.primary : theme.colors.border },
+          ]}>
+            <View style={[styles.switchThumb, { alignSelf: notificationsEnabledState ? 'flex-end' : 'flex-start', backgroundColor: notificationsEnabledState ? theme.colors.primaryText : theme.colors.surface }]} />
+          </View>
+        </Pressable>
+        <Button variant="secondary" onPress={() => void resyncNotifications()}>Reschedule reminders</Button>
       </Card>
 
       <Card>
@@ -196,6 +329,12 @@ const textSizeOptions: { label: string; value: TextSize }[] = [
   { label: 'Extra large', value: 'extraLarge' },
 ];
 
+function labelForCsvKind(kind: 'applications' | 'resumes' | 'reminders') {
+  if (kind === 'applications') return 'Applications';
+  if (kind === 'resumes') return 'Resumes';
+  return 'Reminders';
+}
+
 function PreferenceGroup({ label, children }: { label: string; children: ReactNode }) {
   return (
     <View style={styles.preferenceGroup}>
@@ -227,6 +366,7 @@ function PreferenceChoice({ label, selected, onPress }: { label: string; selecte
 }
 
 const styles = StyleSheet.create({
+  actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   preferenceGroup: { gap: 8 },
   choiceRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   choice: {
@@ -254,6 +394,7 @@ const styles = StyleSheet.create({
     borderRadius: 15,
     padding: 3,
     justifyContent: 'center',
+    
   },
   switchThumb: {
     width: 24,

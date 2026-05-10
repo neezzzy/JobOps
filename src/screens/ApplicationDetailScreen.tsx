@@ -159,12 +159,21 @@ export function ApplicationDetailScreen({ id }: { id: string }) {
 function ResumeFit({ current, best }: { current: ResumeMatch | null; best?: ResumeMatch }) {
   const match = current ?? best;
   if (!match?.resume) return <Body muted>Add a resume version to see local keyword fit.</Body>;
+  const alternative = current && best?.resume?.id !== current.resume?.id ? best : null;
   return (
     <View style={styles.fit}>
       <Body>{current ? `Current: ${match.resume.name}` : `Suggested: ${match.resume.name}`}</Body>
       <Body muted>{Math.round(match.score * 100)}% keyword fit</Body>
       <Body muted>Matched: {match.matched.length ? match.matched.join(', ') : 'None yet'}</Body>
       <Body muted>Missing: {match.missing.length ? match.missing.join(', ') : 'No obvious gaps'}</Body>
+      {alternative && (
+        <>
+          <Body>Best alternative: {alternative.resume?.name}</Body>
+          <Body muted>{Math.round(alternative.score * 100)}% keyword fit</Body>
+          <Body muted>Matched: {alternative.matched.length ? alternative.matched.join(', ') : 'None yet'}</Body>
+          <Body muted>Missing: {alternative.missing.length ? alternative.missing.join(', ') : 'No obvious gaps'}</Body>
+        </>
+      )}
     </View>
   );
 }

@@ -62,6 +62,7 @@ describe('database', () => {
     );
     expect(mockRunAsync).toHaveBeenCalledWith(expect.stringContaining('INSERT INTO status_history'), expect.stringMatching(/^hist_/), expect.stringMatching(/^app_/), null, 'Saved', expect.any(String));
     expect(mockRunAsync).toHaveBeenCalledWith(expect.stringContaining('INSERT INTO reminders'), expect.stringMatching(/^rem_/), expect.stringMatching(/^app_/), '2026-05-05', 'Apply by: Product Analyst at Acme', expect.any(String), expect.any(String));
+    expect(mockRunAsync).toHaveBeenCalledWith('UPDATE reminders SET notification_id = ?, updated_at = ? WHERE id = ?', null, expect.any(String), expect.stringMatching(/^rem_/));
   });
 
   it('deletes related application data', async () => {

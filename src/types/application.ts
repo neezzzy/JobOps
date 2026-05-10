@@ -6,6 +6,9 @@ export type ParsedJobData = {
   keywords: string[];
   possibleSalaryText?: string;
   workMode?: 'Remote' | 'Hybrid' | 'On-site';
+  possibleLocation?: string;
+  possibleUrl?: string;
+  possibleSourceSite?: string;
   topRequirements: string[];
   possibleTitle?: string;
   possibleCompany?: string;
@@ -61,6 +64,7 @@ export type Reminder = {
   reminder_date: string;
   title: string;
   completed: number;
+  notification_id?: string | null;
   created_at: string;
   updated_at: string;
 };

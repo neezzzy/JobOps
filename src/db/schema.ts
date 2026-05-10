@@ -54,6 +54,7 @@ CREATE TABLE IF NOT EXISTS reminders (
   reminder_date TEXT NOT NULL,
   title TEXT NOT NULL,
   completed INTEGER DEFAULT 0,
+  notification_id TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
