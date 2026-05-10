@@ -53,6 +53,11 @@ CREATE TABLE IF NOT EXISTS reminders (
   updated_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS preferences (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_applications_status ON applications(status);
 CREATE INDEX IF NOT EXISTS idx_applications_created_at ON applications(created_at);
 CREATE INDEX IF NOT EXISTS idx_reminders_date ON reminders(reminder_date);

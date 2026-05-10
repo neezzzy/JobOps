@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react-native';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { DashboardScreen } from './DashboardScreen';
 import { JobBoardScreen } from './JobBoardScreen';
 import { RemindersScreen } from './RemindersScreen';
@@ -40,7 +40,11 @@ jest.mock('@/src/db/database', () => ({
 
 jest.mock('@/src/services/exportImport', () => ({
   clearAllData: jest.fn(async () => undefined),
-  exportAllData: jest.fn(async () => 'backup-data'),
+  exportAllData: jest.fn(async () => JSON.stringify({
+    applications: [{}],
+    resume_versions: [{}, {}],
+    reminders: [{}, {}, {}],
+  })),
   importAllData: jest.fn(async () => undefined),
 }));
 
@@ -66,7 +70,24 @@ describe('screens', () => {
 
     expect(screen.getByText('Backups')).toBeTruthy();
     expect(screen.getByText('Create backup')).toBeTruthy();
+    expect(screen.getByText('Appearance')).toBeTruthy();
+    expect(screen.getByText('System')).toBeTruthy();
+    expect(screen.getByText('Light')).toBeTruthy();
+    expect(screen.getByText('Dark')).toBeTruthy();
+    expect(screen.getByText('Text size')).toBeTruthy();
+    expect(screen.getByText('High contrast')).toBeTruthy();
     expect(screen.queryByText(/JSON/)).toBeNull();
+  });
+
+  it('creates backups without showing raw backup data', async () => {
+    render(<SettingsScreen />);
+
+    fireEvent.press(screen.getByText('Create backup'));
+
+    expect(await screen.findByText(/Backup created/)).toBeTruthy();
+    expect(screen.getByText(/Includes 1 jobs, 2 resumes, and 3 reminders/)).toBeTruthy();
+    expect(screen.queryByText(/applications/)).toBeNull();
+    expect(screen.queryByText('Saved backup')).toBeNull();
   });
 
   it('renders the resume form upload entry point', () => {

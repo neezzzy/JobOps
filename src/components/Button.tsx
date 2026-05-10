@@ -26,7 +26,7 @@ export function Button({ children, variant = 'primary', style, disabled, ...prop
         style,
       ]}
       {...props}>
-      <Text style={[styles.text, { color }]}>{children}</Text>
+      <Text style={[styles.text, { color, fontSize: 16 * theme.textScale, lineHeight: 20 * theme.textScale }]}>{children}</Text>
     </Pressable>
   );
 }
@@ -42,5 +42,5 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   quiet: { borderWidth: 0, paddingHorizontal: 6 },
-  text: { fontSize: 16, fontWeight: '700', letterSpacing: 0, textAlign: 'center' },
+  text: { fontWeight: '700', letterSpacing: 0, textAlign: 'center' },
 });

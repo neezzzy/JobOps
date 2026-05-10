@@ -16,7 +16,7 @@ export function FormField({ label, style, multiline, ...props }: Props) {
         style={[
           styles.input,
           multiline && styles.multiline,
-          { backgroundColor: theme.colors.input, borderColor: theme.colors.border, color: theme.colors.text },
+          { backgroundColor: theme.colors.input, borderColor: theme.colors.border, color: theme.colors.text, fontSize: 16 * theme.textScale, lineHeight: 22 * theme.textScale },
           style,
         ]}
         multiline={multiline}
@@ -35,7 +35,6 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 10,
-    fontSize: 16,
     letterSpacing: 0,
   },
   multiline: { minHeight: 110 },

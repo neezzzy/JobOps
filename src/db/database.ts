@@ -1,5 +1,6 @@
 import * as SQLite from 'expo-sqlite';
 import { APPLICATION_STATUSES, type ApplicationInput, type ApplicationStatus, type JobApplication, type Reminder, type StatusHistory } from '@/src/types/application';
+import { defaultPreferences, type AppPreferences } from '@/src/types/preferences';
 import type { ResumeVersion, ResumeVersionInput } from '@/src/types/resume';
 import { createId } from '@/src/utils/ids';
 import { nowIso } from '@/src/utils/dates';
@@ -197,6 +198,28 @@ export async function setReminderCompleted(id: string, completed: boolean) {
 export async function listStatusHistory(applicationId: string) {
   const db = await getDb();
   return db.getAllAsync<StatusHistory>('SELECT * FROM status_history WHERE application_id = ? ORDER BY changed_at DESC', applicationId);
+}
+
+export async function getAppPreferences(): Promise<AppPreferences> {
+  const db = await getDb();
+  const rows = await db.getAllAsync<{ key: string; value: string }>('SELECT key, value FROM preferences');
+  return rows.reduce<AppPreferences>((preferences, row) => {
+    if (row.key === 'themeMode' && ['system', 'light', 'dark'].includes(row.value)) {
+      preferences.themeMode = row.value as AppPreferences['themeMode'];
+    }
+    if (row.key === 'textSize' && ['normal', 'large', 'extraLarge'].includes(row.value)) {
+      preferences.textSize = row.value as AppPreferences['textSize'];
+    }
+    if (row.key === 'highContrast') {
+      preferences.highContrast = row.value === 'true';
+    }
+    return preferences;
+  }, { ...defaultPreferences });
+}
+
+export async function setAppPreference<Key extends keyof AppPreferences>(key: Key, value: AppPreferences[Key]) {
+  const db = await getDb();
+  await db.runAsync('INSERT OR REPLACE INTO preferences (key, value) VALUES (?, ?)', key, String(value));
 }
 
 async function addStatusHistory(applicationId: string, oldStatus: string | null, newStatus: ApplicationStatus) {
