@@ -4,6 +4,8 @@ JobOps is a local-first Expo app for tracking job applications, resume versions,
 
 ## Setup
 
+Use Node.js 20.19.4 or newer.
+
 ```bash
 npm install
 npm run web
