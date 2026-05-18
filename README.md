@@ -4,6 +4,14 @@ Track your job search like an operations pipeline.
 
 JobOps is a local-first Expo, React Native, and TypeScript app for organizing job applications, resume versions, follow-ups, notes, and job posting details without accounts, cloud sync, analytics, scraping, external AI services, paid APIs, or a backend.
 
+## Hero Screenshots
+
+README preview placeholders are included below so the repository has a portfolio-ready visual layout. Replace these SVGs with finalized app screenshots after the UI capture pass.
+
+| Dashboard Preview | Workflow Preview |
+| --- | --- |
+| ![JobOps dashboard preview placeholder](docs/screenshots/hero-dashboard.svg) | ![JobOps workflow preview placeholder](docs/screenshots/hero-workflow.svg) |
+
 ## Overview
 
 JobOps treats a job search as an operational workflow instead of a loose set of notes. It gives applicants a structured place to track opportunities, monitor application status, manage resume versions, plan follow-ups, and preserve job posting details locally on their device.
@@ -78,7 +86,7 @@ Backups are exported and imported from Settings using a plain backup file format
 
 ## Screenshots
 
-Screenshots can be added here after the UI is finalized.
+Screenshots can be added here after the UI is finalized. The hero preview placeholders above can be replaced with captured app screenshots when available.
 
 | Screen | Placeholder |
 | --- | --- |
