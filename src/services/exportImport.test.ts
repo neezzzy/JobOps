@@ -13,6 +13,10 @@ describe('exportImport', () => {
     mockGetAllAsync.mockClear();
   });
 
+  it('rejects backups that are not valid JSON', async () => {
+    await expect(importAllData('not json')).rejects.toThrow('not valid JSON');
+  });
+
   it('rejects backups that are missing required data', async () => {
     await expect(importAllData('{}')).rejects.toThrow('missing required data');
   });
