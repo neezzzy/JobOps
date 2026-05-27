@@ -25,7 +25,12 @@ export async function exportAllData(): Promise<string> {
 }
 
 export async function importAllData(json: string) {
-  const parsed = JSON.parse(json) as Partial<JobOpsBackup>;
+  let parsed: Partial<JobOpsBackup>;
+  try {
+    parsed = JSON.parse(json) as Partial<JobOpsBackup>;
+  } catch {
+    throw new Error('This backup is not valid JSON.');
+  }
   if (!Array.isArray(parsed.applications) || !Array.isArray(parsed.resume_versions) || !Array.isArray(parsed.status_history) || !Array.isArray(parsed.reminders)) {
     throw new Error('This backup is missing required data.');
   }
